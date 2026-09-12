@@ -1,0 +1,84 @@
+name: Build LiteMonitor
+
+on:
+  push:
+    branches:
+      - master
+    tags:
+      - 'v*'  # 版本号标记
+  pull_request:
+    branches:
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  build:
+    name: Build Windows x64
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Restore dependencies
+        run: dotnet restore LiteMonitor.csproj --runtime win-x64
+
+      - name: Validate plugin JSON files
+        shell: pwsh
+        run: |
+          $files = Get-ChildItem -Path 'resources/plugins' -Filter '*.json'
+          if ($files.Count -eq 0) {
+            throw 'No plugin JSON files were found.'
+          }
+
+          foreach ($file in $files) {
+            try {
+              Get-Content -Raw -LiteralPath $file.FullName | ConvertFrom-Json | Out-Null
+              Write-Host "Validated $($file.Name)"
+            }
+            catch {
+              throw "Invalid JSON in $($file.FullName): $($_.Exception.Message)"
+            }
+          }
+
+      - name: Build
+        run: dotnet build LiteMonitor.csproj --configuration Release --runtime win-x64 --no-restore
+
+      - name: Publish Windows x64
+        run: >-
+          dotnet publish LiteMonitor.csproj
+          --configuration Release
+          --runtime win-x64
+          --self-contained false
+          --output publish
+          --no-restore
+
+      - name: Create release archive
+        shell: pwsh
+        run: |
+          [xml]$project = Get-Content -Raw -LiteralPath 'LiteMonitor.csproj'
+          $version = $project.Project.PropertyGroup.Version | Select-Object -First 1
+          if ([string]::IsNullOrWhiteSpace($version)) {
+            $version = '${{ github.sha }}'
+          }
+
+          $archive = "LiteMonitor-win-x64-$version.zip"
+          Compress-Archive -Path 'publish\*' -DestinationPath $archive -Force
+          "ARCHIVE=$archive" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: LiteMonitor-win-x64-${{ github.sha }}
+          path: ${{ env.ARCHIVE }}
+          if-no-files-found: error
+          retention-days: 14

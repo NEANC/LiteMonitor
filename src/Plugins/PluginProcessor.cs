@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 
@@ -112,6 +113,9 @@ namespace LiteMonitor.src.Plugins
                     case "threshold_switch":
                         val = ApplyThresholdSwitch(val, t);
                         break;
+                    case "countdown":
+                        val = ApplyCountdown(val);
+                        break;
                 }
 
                 context[t.TargetVar] = val;
@@ -159,6 +163,26 @@ namespace LiteMonitor.src.Plugins
                 return t.Map[val];
             }
             return val;
+        }
+
+        private static string ApplyCountdown(string val)
+        {
+            if (!DateTimeOffset.TryParse(val, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var target))
+            {
+                return "--:--:--";
+            }
+
+            var remaining = target - DateTimeOffset.Now;
+            if (remaining <= TimeSpan.Zero)
+            {
+                return "00:00:00";
+            }
+
+            var totalSeconds = (long)remaining.TotalSeconds;
+            var hours = totalSeconds / 3600;
+            var minutes = (totalSeconds % 3600) / 60;
+            var seconds = totalSeconds % 60;
+            return $"{hours:00}:{minutes:00}:{seconds:00}";
         }
 
         private static string ApplyThresholdSwitch(string val, PluginTransform t)

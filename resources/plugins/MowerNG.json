@@ -1,0 +1,108 @@
+{
+  "id": "MowerNG",
+  "meta": {
+    "name": "mower-ng 调度监控",
+    "version": "1.0",
+    "author": "LiteMonitor",
+    "description": "显示 mower-ng 调度状态和下次运行时间"
+  },
+  "inputs": [
+    {
+      "key": "scheduler_url",
+      "label": "调度器 API 地址",
+      "type": "text",
+      "default": "http://127.0.0.1:58000/scheduler",
+      "placeholder": "http://127.0.0.1:58000/scheduler",
+      "scope": "target"
+    },
+    {
+      "key": "display_mode",
+      "label": "显示方式",
+      "type": "select",
+      "default": "next_time",
+      "options": [
+        {
+          "label": "下次运行时间",
+          "value": "next_time"
+        },
+        {
+          "label": "倒计时",
+          "value": "countdown"
+        }
+      ],
+      "scope": "target"
+    }
+  ],
+  "execution": {
+    "type": "chain",
+    "interval": 10,
+    "steps": [
+      {
+        "id": "fetch_scheduler",
+        "url": "{{scheduler_url}}",
+        "method": "GET",
+        "response_format": "json",
+        "extract": {
+          "idle": "idle",
+          "next_time": "next_time"
+        },
+        "process": [
+          {
+            "var": "next_time_display",
+            "source": "next_time",
+            "function": "regex_match",
+            "pattern": "T(\\d{2}:\\d{2}:\\d{2})",
+            "to": "1"
+          },
+          {
+            "var": "countdown_display",
+            "source": "next_time",
+            "function": "countdown"
+          },
+          {
+            "var": "display_template",
+            "source": "display_mode",
+            "function": "map",
+            "map": {
+              "next_time": "{{next_time_display ?? '--:--:--'}}",
+              "countdown": "{{countdown_display}}"
+            }
+          },
+          {
+            "var": "display_value",
+            "source": "display_template",
+            "function": "resolve_template"
+          },
+          {
+            "var": "scheduler_status",
+            "source": "idle",
+            "function": "map",
+            "map": {
+              "true": "空闲",
+              "false": "运行中"
+            }
+          },
+          {
+            "var": "status_color",
+            "source": "idle",
+            "function": "map",
+            "map": {
+              "true": "0",
+              "false": "1"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "outputs": [
+    {
+      "key": "scheduler",
+      "label": "mower-ng",
+      "short_label": "Mower",
+      "format_val": "{{scheduler_status}} | {{display_value}}",
+      "color": "{{status_color}}",
+      "unit": ""
+    }
+  ]
+}
