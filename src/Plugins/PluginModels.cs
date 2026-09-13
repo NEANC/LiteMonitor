@@ -180,6 +180,14 @@ namespace LiteMonitor.src.Plugins
         // [New] Simplified Key-Value Map for Thresholds (e.g. { "0": "0", "80": "2" })
         [JsonPropertyName("value_map")]
         public Dictionary<string, string>? ValueMap { get; set; }
+
+        // For countdown: 输出格式模板，占位符 {d}/{h}/{hh}/{m}/{mm}/{s}/{ss}，默认 "{hh}:{mm}:{ss}"
+        [JsonPropertyName("format")]
+        public string Format { get; set; } = "";
+
+        // For countdown: 源为空或时间无法解析时的兜底文本，默认 "--:--:--"
+        [JsonPropertyName("fallback")]
+        public string Fallback { get; set; } = "";
     }
 
     public class PluginOutput
