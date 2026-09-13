@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 
@@ -112,6 +113,9 @@ namespace LiteMonitor.src.Plugins
                     case "threshold_switch":
                         val = ApplyThresholdSwitch(val, t);
                         break;
+                    case "countdown":
+                        val = ApplyCountdown(val, t);
+                        break;
                 }
 
                 context[t.TargetVar] = val;
@@ -159,6 +163,60 @@ namespace LiteMonitor.src.Plugins
                 return t.Map[val];
             }
             return val;
+        }
+
+        /// <summary>
+        /// countdown 默认输出格式（时:分:秒，均补零）
+        /// </summary>
+        private const string CountdownDefaultFormat = "{hh}:{mm}:{ss}";
+
+        /// <summary>
+        /// countdown 解析失败时的默认兜底文本
+        /// </summary>
+        private const string CountdownDefaultFallback = "--:--:--";
+
+        /// <summary>
+        /// 将 ISO 8601 目标时间转换为距当前时间的倒计时文本。
+        /// 支持 format 占位符: {d} 天, {h}/{hh} 时, {m}/{mm} 分, {s}/{ss} 秒 (双写补零)。
+        /// format 含 {d} 时小时按"天内剩余小时"计算，否则按总小时数计算。
+        /// 源为空或解析失败时返回 fallback；目标时间已过时按零值渲染。
+        /// </summary>
+        private static string ApplyCountdown(string val, PluginTransform t)
+        {
+            string fallback = string.IsNullOrEmpty(t.Fallback) ? CountdownDefaultFallback : t.Fallback;
+
+            if (string.IsNullOrWhiteSpace(val))
+            {
+                return fallback;
+            }
+
+            if (!DateTimeOffset.TryParse(val, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var target))
+            {
+                return fallback;
+            }
+
+            string format = string.IsNullOrEmpty(t.Format) ? CountdownDefaultFormat : t.Format;
+            var remaining = target - DateTimeOffset.Now;
+            if (remaining < TimeSpan.Zero)
+            {
+                remaining = TimeSpan.Zero;
+            }
+
+            long totalDays = (long)remaining.TotalDays;
+            // 含 {d} 占位符时，小时为扣除整天后的剩余小时；否则为总小时数
+            long hours = format.Contains("{d}") ? remaining.Hours : (long)remaining.TotalHours;
+            long minutes = remaining.Minutes;
+            long seconds = remaining.Seconds;
+
+            // 注意替换顺序：先替换双字母占位符，再替换单字母，避免 {hh} 被 {h} 部分替换
+            return format
+                .Replace("{d}", totalDays.ToString(CultureInfo.InvariantCulture))
+                .Replace("{hh}", hours.ToString("00", CultureInfo.InvariantCulture))
+                .Replace("{h}", hours.ToString(CultureInfo.InvariantCulture))
+                .Replace("{mm}", minutes.ToString("00", CultureInfo.InvariantCulture))
+                .Replace("{m}", minutes.ToString(CultureInfo.InvariantCulture))
+                .Replace("{ss}", seconds.ToString("00", CultureInfo.InvariantCulture))
+                .Replace("{s}", seconds.ToString(CultureInfo.InvariantCulture));
         }
 
         private static string ApplyThresholdSwitch(string val, PluginTransform t)
