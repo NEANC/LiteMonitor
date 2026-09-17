@@ -77,44 +77,31 @@
             }
           },
           {
-            "var": "has_next",
-            "source": "next_time",
-            "function": "regex_replace",
-            "pattern": ".+",
-            "to": "1"
-          },
-          {
-            "var": "status_key",
+            "var": "scheduler_status_template",
             "source": "idle",
-            "function": "regex_replace",
-            "pattern": ".*",
-            "to": "{{idle}}_{{has_next}}"
-          },
-          {
-            "var": "scheduler_status",
-            "source": "status_key",
             "function": "map",
             "map": {
-              "true_1": "空闲",
-              "true_": "停止",
-              "false_1": "运行中",
-              "false_": "运行中"
+              "true": "{{next_time ? '空闲' : '停止'}}",
+              "false": "运行中"
             }
           },
           {
-            "var": "color_template",
-            "source": "status_key",
+            "var": "scheduler_status",
+            "source": "scheduler_status_template",
+            "function": "resolve_template"
+          },
+          {
+            "var": "status_color_template",
+            "source": "idle",
             "function": "map",
             "map": {
-              "false_1": "1",
-              "false_": "1",
-              "true_": "0",
-              "true_1": "{{time_color}}"
+              "true": "{{next_time ? time_color : '0'}}",
+              "false": "1"
             }
           },
           {
             "var": "status_color",
-            "source": "color_template",
+            "source": "status_color_template",
             "function": "resolve_template"
           },
           {
