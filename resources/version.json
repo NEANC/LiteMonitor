@@ -1,6 +1,6 @@
 {
-  "version": "1.3.8",
-  "changelog": "1，插件引擎新增 countdown 倒计时处理函数\n2，插件引擎请求失败时注入红色状态颜色\n3，countdown 函数新增 {tm} 总分钟数占位符\n4，MowerNG 插件支持停止状态识别和 15 分钟阈值变色\n5，CI/CD 支持 GitHub Release 自动发布",
+  "version": "1.3.9",
+  "changelog": "1，ci: 拆分版本元数据作业，构建与版本回写并行执行\n2，fix(updater): 目录只读属性改用 File.SetAttributes 重置\n3，ci: 版本回写提交带专用标记并从更新日志中永久排除\n4，ci: 标签发布后将版本文件自动回写 master\n5，ci: 标签发布自动写入版本信息并生成更新日志\n6，fix(updater): 覆盖更新时重置目标只读属性并汇总失败文件",
   "releaseDate": "2026-09-17",
   "downloadUrl": "https://github.com/NEANC/LiteMonitor/releases"
 }
