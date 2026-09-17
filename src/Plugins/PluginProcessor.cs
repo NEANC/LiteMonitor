@@ -203,6 +203,7 @@ namespace LiteMonitor.src.Plugins
             }
 
             long totalDays = (long)remaining.TotalDays;
+            long totalMinutes = (long)remaining.TotalMinutes;
             // 含 {d} 占位符时，小时为扣除整天后的剩余小时；否则为总小时数
             long hours = format.Contains("{d}") ? remaining.Hours : (long)remaining.TotalHours;
             long minutes = remaining.Minutes;
@@ -210,6 +211,7 @@ namespace LiteMonitor.src.Plugins
 
             // 注意替换顺序：先替换双字母占位符，再替换单字母，避免 {hh} 被 {h} 部分替换
             return format
+                .Replace("{tm}", totalMinutes.ToString(CultureInfo.InvariantCulture))
                 .Replace("{d}", totalDays.ToString(CultureInfo.InvariantCulture))
                 .Replace("{hh}", hours.ToString("00", CultureInfo.InvariantCulture))
                 .Replace("{h}", hours.ToString(CultureInfo.InvariantCulture))
