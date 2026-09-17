@@ -302,10 +302,12 @@ namespace LiteMonitor
             if (string.IsNullOrWhiteSpace(version))
                 version = Application.ProductVersion;
 
-            // 这里的 version 可能会包含后缀 (如 1.0.7+abcdef)，需要截断
-            int plusIndex = version.IndexOf('+');
-            if (plusIndex > 0)
-                version = version.Substring(0, plusIndex);
+            // 这里的 version 可能包含 SemVer 后缀：
+            // 预发布标签（如 1.3.9-beta）或构建元数据（如 1.0.7+abcdef），
+            // Version 类型只接受纯数字，比较前统一截断到数字核心。
+            int suffixIndex = version.IndexOfAny(new[] { '-', '+' });
+            if (suffixIndex > 0)
+                version = version.Substring(0, suffixIndex);
 
             return version;
         }
