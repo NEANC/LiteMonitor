@@ -48,43 +48,20 @@ jobs:
             fi
           fi
 
-  build:
-    name: Build Windows x64
+  # 标签发布时先生成版本元数据（changelog / 版本号），产物供 build 与 sync 并行消费
+  prepare:
+    name: Prepare release metadata
     needs: check
     if: needs.check.outputs.should_build == 'true'
     runs-on: windows-latest
-
+    outputs:
+      release_version: ${{ steps.version.outputs.release_version }}
+      prerelease: ${{ steps.version.outputs.prerelease }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
         with:
           fetch-depth: 0  # 生成 changelog 需要完整标签历史
-
-      - name: Setup .NET 8
-        uses: actions/setup-dotnet@v6
-        with:
-          dotnet-version: 8.0.x
-
-      - name: Restore dependencies
-        run: dotnet restore LiteMonitor.csproj --runtime win-x64
-
-      - name: Validate plugin JSON files
-        shell: pwsh
-        run: |
-          $files = Get-ChildItem -Path 'resources/plugins' -Filter '*.json'
-          if ($files.Count -eq 0) {
-            throw 'No plugin JSON files were found.'
-          }
-
-          foreach ($file in $files) {
-            try {
-              Get-Content -Raw -LiteralPath $file.FullName | ConvertFrom-Json | Out-Null
-              Write-Host "Validated $($file.Name)"
-            }
-            catch {
-              throw "Invalid JSON in $($file.FullName): $($_.Exception.Message)"
-            }
-          }
 
       # 仅标签发布：按 git 历史生成变更日志（Revert 提交与其还原的提交都会被过滤）
       - name: Generate changelog from git history
@@ -164,6 +141,7 @@ jobs:
 
       # 仅标签发布：把标签版本写入 csproj 与 version.json（仅修改 CI 工作区，不回写仓库）
       - name: Apply tag version to csproj and version.json
+        id: version
         if: startsWith(github.ref, 'refs/tags/v')
         shell: pwsh
         run: |
@@ -172,8 +150,6 @@ jobs:
           $core = ($full -split '[-+]')[0]
           # FileVersion 只接受纯数字四段式
           $fileVersion = if (($core.Split('.')).Count -ge 4) { $core } else { "$core.0" }
-          "RELEASE_VERSION=$full" | Add-Content -Path $env:GITHUB_ENV
-          "FILE_VERSION=$fileVersion" | Add-Content -Path $env:GITHUB_ENV
 
           $csprojPath = 'LiteMonitor.csproj'
           $csproj = Get-Content -Raw -LiteralPath $csprojPath
@@ -192,6 +168,66 @@ jobs:
           # downloadUrl 保持文件内既有值，不在 CI 中改写
           $version | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $versionPath -Encoding utf8NoBOM
           Write-Host "version.json -> version=$core, $($subjects.Count) changelog entries"
+
+          "release_version=$full" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "prerelease=$($env:PRERELEASE)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+      - name: Upload release metadata
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-meta
+          path: |
+            CHANGELOG.md
+            LiteMonitor.csproj
+            resources/version.json
+          if-no-files-found: error
+
+  build:
+    name: Build Windows x64
+    needs:
+      - check
+      - prepare
+    if: needs.check.outputs.should_build == 'true'
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      # 标签发布：用 prepare 产出的版本文件覆盖工作区
+      - name: Apply release metadata
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: actions/download-artifact@v7
+        with:
+          name: release-meta
+          path: .
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Restore dependencies
+        run: dotnet restore LiteMonitor.csproj --runtime win-x64
+
+      - name: Validate plugin JSON files
+        shell: pwsh
+        run: |
+          $files = Get-ChildItem -Path 'resources/plugins' -Filter '*.json'
+          if ($files.Count -eq 0) {
+            throw 'No plugin JSON files were found.'
+          }
+
+          foreach ($file in $files) {
+            try {
+              Get-Content -Raw -LiteralPath $file.FullName | ConvertFrom-Json | Out-Null
+              Write-Host "Validated $($file.Name)"
+            }
+            catch {
+              throw "Invalid JSON in $($file.FullName): $($_.Exception.Message)"
+            }
+          }
 
       - name: Build
         run: dotnet build LiteMonitor.csproj --configuration Release --runtime win-x64 --no-restore
@@ -224,8 +260,8 @@ jobs:
       - name: Create release archive
         shell: pwsh
         run: |
-          # 标签构建使用随标签写入的版本；其余构建回退 csproj 版本，再回退 commit SHA
-          $version = $env:RELEASE_VERSION
+          # 标签构建使用 prepare 输出的版本；其余构建回退 csproj 版本，再回退 commit SHA
+          $version = '${{ needs.prepare.outputs.release_version }}'
           if ([string]::IsNullOrWhiteSpace($version)) {
             [xml]$project = Get-Content -Raw -LiteralPath 'LiteMonitor.csproj'
             $version = $project.Project.PropertyGroup.Version | Select-Object -First 1
@@ -254,15 +290,32 @@ jobs:
           name: LiteMonitor ${{ github.ref_name }}
           body_path: CHANGELOG.md
           # 标签含连字符（如 v1.3.9-beta、v1.3.9-rc1）时标记为预发布版
-          prerelease: ${{ env.PRERELEASE == 'true' }}
+          prerelease: ${{ needs.prepare.outputs.prerelease == 'true' }}
           fail_on_unmatched_files: true
 
-      # 发布完成后把版本文件回写到 master：
-      # 应用内更新检查读取的是 master 上的 version.json，不回写则老用户收不到更新提示。
-      # [skip ci] 避免回写推送再次触发本工作流；
-      # [release-sync] 为专用标记，使该提交在任何版本的 changelog 生成中都被过滤。
+  # 与 build 并行：发布元数据就绪后立即回写 master，不等待构建结果
+  # 应用内更新检查读取 master 上的 version.json，不回写则老用户收不到更新提示。
+  sync:
+    name: Sync version files to master
+    needs:
+      - check
+      - prepare
+    if: >-
+      needs.check.outputs.should_build == 'true' &&
+      startsWith(github.ref, 'refs/tags/v')
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Download release metadata
+        uses: actions/download-artifact@v7
+        with:
+          name: release-meta
+          path: .
+
       - name: Sync version files back to master
-        if: startsWith(github.ref, 'refs/tags/v')
         shell: pwsh
         run: |
           $tag = $env:GITHUB_REF_NAME
@@ -290,5 +343,6 @@ jobs:
             exit 0
           }
 
+          # [skip ci] 抑制重复构建；[release-sync] 使其在任何版本的 changelog 中被过滤
           git commit -m "chore(release): 同步 $tag 版本号与更新日志 [release-sync] [skip ci]"
           git push origin master
