@@ -251,3 +251,38 @@ jobs:
           # 标签含连字符（如 v1.3.9-beta、v1.3.9-rc1）时标记为预发布版
           prerelease: ${{ env.PRERELEASE == 'true' }}
           fail_on_unmatched_files: true
+
+      # 发布完成后把版本文件回写到 master：
+      # 应用内更新检查读取的是 master 上的 version.json，不回写则老用户收不到更新提示。
+      # 提交信息带 [skip ci]，避免回写推送再次触发本工作流。
+      - name: Sync version files back to master
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        run: |
+          $tag = $env:GITHUB_REF_NAME
+
+          # 1. 暂存本次按标签生成的两个版本文件（仅这两个文件纳入回写）
+          Copy-Item -LiteralPath 'LiteMonitor.csproj' -Destination '_sync_csproj' -Force
+          Copy-Item -LiteralPath 'resources/version.json' -Destination '_sync_version.json' -Force
+
+          # 2. 以 GITHUB_TOKEN 身份对齐远端 master（标签事件中工作区处于 detached HEAD）
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git fetch origin master
+          git checkout -B master origin/master
+
+          # 3. 覆盖为标签版本内容
+          Copy-Item -LiteralPath '_sync_csproj' -Destination 'LiteMonitor.csproj' -Force
+          Copy-Item -LiteralPath '_sync_version.json' -Destination 'resources/version.json' -Force
+          Remove-Item -LiteralPath '_sync_csproj','_sync_version.json' -Force
+
+          # 4. 白名单暂存；无差异（如同一天重跑同一标签）则跳过
+          git add -- LiteMonitor.csproj resources/version.json
+          git diff --cached --quiet
+          if ($LASTEXITCODE -eq 0) {
+            Write-Host 'master 上的版本文件与标签内容一致，无需回写。'
+            exit 0
+          }
+
+          git commit -m "chore(release): 同步 $tag 版本号与更新日志 [skip ci]"
+          git push origin master
