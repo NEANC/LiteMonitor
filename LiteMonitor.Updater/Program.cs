@@ -235,18 +235,15 @@ namespace LiteMonitor.Updater
         /// <summary>
         /// 将文件或目录的只读/隐藏/系统属性重置为 Normal，
         /// 使其可以被覆盖；任何异常都静默忽略，交由复制重试处理。
+        /// 注意：Directory 没有 SetAttributes，目录属性同样通过 File.SetAttributes 设置。
         /// </summary>
         private static void TryResetAttributes(string path)
         {
             try
             {
-                if (File.Exists(path))
+                if (File.Exists(path) || Directory.Exists(path))
                 {
                     File.SetAttributes(path, FileAttributes.Normal);
-                }
-                else if (Directory.Exists(path))
-                {
-                    Directory.SetAttributes(path, FileAttributes.Normal);
                 }
             }
             catch { }
