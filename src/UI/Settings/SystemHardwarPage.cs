@@ -234,10 +234,30 @@ namespace LiteMonitor.src.UI.SettingsPage
             group.AddToggle(this, "Menu.AutoStart", () => Config?.AutoStart ?? false, v => { if(Config!=null) Config.AutoStart = v; });
             group.AddToggle(this, "Menu.AutoCheckUpdate", () => Config?.AutoCheckUpdate ?? true, v => { if(Config!=null) Config.AutoCheckUpdate = v; });
 
-            var chkTray = group.AddToggle(this, "Menu.HideTrayIcon", 
-                () => Config?.HideTrayIcon ?? false, 
+            var chkTray = group.AddToggle(this, "Menu.HideTrayIcon",
+                () => Config?.HideTrayIcon ?? false,
                 v => { if(Config!=null) Config.HideTrayIcon = v; });
             chkTray.CheckedChanged += (s, e) => { if(Config!=null) EnsureSafeVisibility(null, chkTray, null); };
+
+            // 更新代理（仅作用于软件更新检查与下载，支持 HTTP / SOCKS5）
+            group.AddComboPair(this, LanguageManager.T("Menu.UpdateProxyType"),
+                new[]
+                {
+                    new { Label = LanguageManager.T("Menu.ProxyOff"),    Value = "off" },
+                    new { Label = "HTTP",                            Value = "http" },
+                    new { Label = "SOCKS5",                          Value = "socks5" }
+                },
+                () => string.IsNullOrEmpty(Config?.UpdateProxyType) ? "off" : Config!.UpdateProxyType,
+                v => { if (Config != null) Config.UpdateProxyType = v; });
+
+            group.AddInput(this, "Menu.UpdateProxyHost",
+                () => Config?.UpdateProxyHost ?? "",
+                v => { if (Config != null) Config.UpdateProxyHost = v; },
+                "127.0.0.1", 130);
+
+            group.AddInt(this, "Menu.UpdateProxyPort", "",
+                () => Config?.UpdateProxyPort ?? 0,
+                v => { if (Config != null) Config.UpdateProxyPort = v; }, 70);
 
             AddGroupToPage(group);
         }

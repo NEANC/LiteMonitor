@@ -214,6 +214,10 @@
     "AutoStart": "Auto Start",
     "AutoCheckUpdate": "Auto Check Update",
     "HideTrayIcon": "Hide Tray",
+    "UpdateProxyType": "Update Proxy",
+    "UpdateProxyHost": "Proxy Server",
+    "UpdateProxyPort": "Proxy Port",
+    "ProxyOff": "Off",
 
     "Calibration": "Calibration",
     "MaxLimits": "Max Value",

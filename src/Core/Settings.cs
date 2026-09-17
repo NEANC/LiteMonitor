@@ -19,6 +19,13 @@ namespace LiteMonitor
 
         // ====== 界面与行为 ======
         public bool AutoCheckUpdate { get; set; } = true; // ★★★ [新增] 自动检查更新 ★★★
+
+        // ====== 更新代理 ======
+        // 代理类型："off"=关闭（直连），"http"=HTTP 代理，"socks5"=SOCKS5 代理
+        public string UpdateProxyType { get; set; } = "off";
+        public string UpdateProxyHost { get; set; } = "";
+        public int UpdateProxyPort { get; set; } = 0;
+
         public bool HorizontalMode { get; set; } = false;
         public double Opacity { get; set; } = 0.85;
         public string Language { get; set; } = "";

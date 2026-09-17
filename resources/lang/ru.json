@@ -214,6 +214,10 @@
     "AutoStart": "Автозапуск",
     "AutoCheckUpdate": "Авто-проверка",
     "HideTrayIcon": "Без иконки",
+    "UpdateProxyType": "Прокси обновлений",
+    "UpdateProxyHost": "Прокси-сервер",
+    "UpdateProxyPort": "Порт прокси",
+    "ProxyOff": "Выкл",
 
     "Calibration": "Калибровка",
     "MaxLimits": "Максимум",

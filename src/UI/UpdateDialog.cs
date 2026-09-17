@@ -145,7 +145,7 @@ namespace LiteMonitor
                 {
                     try
                     {
-                        using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(3) };
+                        using var client = UpdateHttpClient.Create(TimeSpan.FromSeconds(3));
                         var sw = Stopwatch.StartNew();
                         using var response = await client.GetAsync(url, HttpCompletionOption.ResponseHeadersRead);
                         sw.Stop();
@@ -217,19 +217,8 @@ namespace LiteMonitor
                             ? $"正在连接下载服务器..." 
                             : $"Connecting to server...";
 
-                        // 4. 配置 HttpClient (支持 SSL Bypass 和超时)
-                        var handler = new SocketsHttpHandler
-                        {
-                            SslOptions = new SslClientAuthenticationOptions
-                            {
-                                RemoteCertificateValidationCallback = delegate { return true; }
-                            }
-                        };
-
-                        using var http = new HttpClient(handler)
-                        { 
-                            Timeout = TimeSpan.FromMinutes(10) 
-                        };
+                        // 4. 配置 HttpClient（走用户设置的更新代理，支持 SSL Bypass 和超时）
+                        using var http = UpdateHttpClient.Create(TimeSpan.FromMinutes(10));
                         http.DefaultRequestHeaders.UserAgent.ParseAdd("LiteMonitor-Updater/1.0");
 
                         // 5. 发起请求

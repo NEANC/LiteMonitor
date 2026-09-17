@@ -214,6 +214,10 @@
     "AutoStart": "자동 실행",
     "AutoCheckUpdate": "자동 확인",
     "HideTrayIcon": "트레이 숨김",
+    "UpdateProxyType": "업데이트 프록시",
+    "UpdateProxyHost": "프록시 서버",
+    "UpdateProxyPort": "프록시 포트",
+    "ProxyOff": "끄기",
 
     "Calibration": "보정",
     "MaxLimits": "최대값",

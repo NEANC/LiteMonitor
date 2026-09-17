@@ -212,6 +212,10 @@
     "AutoStart": "開機啟動",
     "AutoCheckUpdate": "自動檢查更新",
     "HideTrayIcon": "隱藏托盤圖示",
+    "UpdateProxyType": "更新代理",
+    "UpdateProxyHost": "代理伺服器",
+    "UpdateProxyPort": "代理連接埠",
+    "ProxyOff": "關閉",
 
     "Calibration": "硬體參數校準",
     "MaxLimits": "最大值",

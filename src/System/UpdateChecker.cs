@@ -23,19 +23,10 @@ namespace LiteMonitor
     /// </summary>
     public static class UpdateChecker
     {
-        // 全局 HttpClient（降低系统资源消耗）
-        private static readonly HttpClient http = new HttpClient(new SocketsHttpHandler
-        {
-            PooledConnectionLifetime = TimeSpan.FromMinutes(2), // 保持连接复用
-            SslOptions = new SslClientAuthenticationOptions
-            {
-                // 强制信任所有证书（解决用户证书报错问题）
-                RemoteCertificateValidationCallback = (sender, cert, chain, sslPolicyErrors) => true
-            }
-        })
-        {
-            Timeout = TimeSpan.FromSeconds(6) // 适当放宽超时时间，避免网络波动导致失败
-        };
+        // 每次检查时通过 UpdateHttpClient 工厂创建客户端，
+        // 以便读取用户最新配置的更新代理（HTTP / SOCKS5）。
+        private static HttpClient CreateHttp()
+            => UpdateHttpClient.Create(TimeSpan.FromSeconds(6));
 
         // ========================================================
         // 【1】两个 version.json 源（自动 fallback）
@@ -179,6 +170,7 @@ namespace LiteMonitor
         // ========================================================
        private static async Task<(string latest, string changelog, string releaseDate)?> GetVersionInfo()
         {
+            using var http = CreateHttp();
             foreach (var url in VersionJsonUrls)
             {
                 try
@@ -266,6 +258,7 @@ namespace LiteMonitor
             {
                 var sw = Stopwatch.StartNew();
 
+                using var http = CreateHttp();
                 using var resp = await http.GetAsync(url, HttpCompletionOption.ResponseHeadersRead);
                 if (!resp.IsSuccessStatusCode)
                     return (url, 0);
