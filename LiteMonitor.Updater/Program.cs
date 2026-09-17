@@ -49,7 +49,12 @@ namespace LiteMonitor.Updater
 
             try
             {
-                if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
+                if (Directory.Exists(tempDir))
+                {
+                    // 上次更新残留的只读文件会让递归删除直接失败，先统一清属性
+                    ClearReadOnlyRecursive(tempDir);
+                    Directory.Delete(tempDir, true);
+                }
                 Directory.CreateDirectory(tempDir);
 
                 // ★★★ [核心修复] 智能识别编码解压 ★★★
@@ -70,10 +75,13 @@ namespace LiteMonitor.Updater
             // ===========================================================
             // 5. 覆盖更新文件 (带重试机制)
             // ===========================================================
+            int totalFiles = 0;
+            var failedFiles = new List<string>();
             try
             {
                 foreach (string srcPath in Directory.GetFiles(realFolder, "*", SearchOption.AllDirectories))
                 {
+                    totalFiles++;
                     string rel = Path.GetRelativePath(realFolder, srcPath);
                     string destPath = Path.Combine(baseDir, rel);
 
@@ -82,18 +90,25 @@ namespace LiteMonitor.Updater
                     // 因此，Updater 运行时，它自己已经是最新版，无需再次覆盖。
                     // 直接跳过，避免“文件正在使用”错误。
                     // 兼容旧版 Updater.exe 和新版 LiteMonitor.Updater.exe
-                    if (rel.EndsWith("Updater.exe", StringComparison.OrdinalIgnoreCase) || 
+                    if (rel.EndsWith("Updater.exe", StringComparison.OrdinalIgnoreCase) ||
                         rel.EndsWith("LiteMonitor.Updater.exe", StringComparison.OrdinalIgnoreCase))
                     {
-                        continue; 
+                        continue;
                     }
 
-                    Directory.CreateDirectory(Path.GetDirectoryName(destPath)!);
+                    string? destDir = Path.GetDirectoryName(destPath);
+                    if (!string.IsNullOrEmpty(destDir))
+                    {
+                        Directory.CreateDirectory(destDir);
+                        // 目标目录若带只读属性，内部文件会无法覆盖，先重置
+                        TryResetAttributes(destDir);
+                    }
 
                     // 使用带重试机制的复制
                     if (!TryCopyFile(srcPath, destPath))
                     {
-                        LogError(baseDir, $"无法覆盖文件 (被占用): {rel}");
+                        failedFiles.Add(rel);
+                        LogError(baseDir, $"无法覆盖文件 (被占用或拒绝访问): {rel}");
                     }
                 }
             }
@@ -102,10 +117,16 @@ namespace LiteMonitor.Updater
                 LogError(baseDir, "复制更新文件失败：" + ex.Message);
             }
 
+            // 汇总本次更新的处理结果，便于排查“文件没有被更新”的问题
+            if (failedFiles.Count > 0)
+            {
+                LogError(baseDir, $"更新完成但有 {failedFiles.Count}/{totalFiles} 个文件覆盖失败：{string.Join("; ", failedFiles)}");
+            }
+
             // ===========================================================
             // 6. 清理临时目录 & zip
             // ===========================================================
-            try { Directory.Delete(tempDir, true); } catch { }
+            try { ClearReadOnlyRecursive(tempDir); Directory.Delete(tempDir, true); } catch { }
             try { File.Delete(zipFile); } catch { }
 
             // ===========================================================
@@ -168,22 +189,67 @@ namespace LiteMonitor.Updater
             {
                 try
                 {
+                    // 覆盖前重置目标属性：
+                    // 旧文件若带只读/隐藏/系统属性，File.Copy 直接覆盖会抛
+                    // UnauthorizedAccessException，单纯重试也不会成功
+                    TryResetAttributes(dest);
+
                     // 简单粗暴：直接覆盖
                     File.Copy(src, dest, true);
-                    return true; 
+
+                    // 保留可写属性，避免下次更新时目标又成为只读文件
+                    TryResetAttributes(dest);
+                    return true;
                 }
                 catch (IOException) // 文件被占用
                 {
-                    if (i == 9) return false; 
-                    Thread.Sleep(500); 
+                    if (i == 9) return false;
+                    Thread.Sleep(500);
                 }
-                catch (UnauthorizedAccessException) // 权限不足
+                catch (UnauthorizedAccessException) // 权限不足或只读
                 {
                     if (i == 9) return false;
                     Thread.Sleep(500);
                 }
             }
             return false;
+        }
+
+        /// <summary>
+        /// 递归清除目录内全部文件及子目录的只读/隐藏/系统属性，
+        /// 用于保证残留临时目录可以被整体删除。
+        /// </summary>
+        private static void ClearReadOnlyRecursive(string dir)
+        {
+            try
+            {
+                foreach (string file in Directory.GetFiles(dir, "*", SearchOption.AllDirectories))
+                {
+                    TryResetAttributes(file);
+                }
+                TryResetAttributes(dir);
+            }
+            catch { }
+        }
+
+        /// <summary>
+        /// 将文件或目录的只读/隐藏/系统属性重置为 Normal，
+        /// 使其可以被覆盖；任何异常都静默忽略，交由复制重试处理。
+        /// </summary>
+        private static void TryResetAttributes(string path)
+        {
+            try
+            {
+                if (File.Exists(path))
+                {
+                    File.SetAttributes(path, FileAttributes.Normal);
+                }
+                else if (Directory.Exists(path))
+                {
+                    Directory.SetAttributes(path, FileAttributes.Normal);
+                }
+            }
+            catch { }
         }
 
         private static bool ContainsLiteMonitorExe(string dir)
