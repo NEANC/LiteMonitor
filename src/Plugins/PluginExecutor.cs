@@ -688,6 +688,9 @@ namespace LiteMonitor.src.Plugins
                     // Inject Error Status
                     InfoService.Instance.InjectValue(injectKey, PluginConstants.STATUS_ERROR);
 
+                    // Inject Error Color (red) so failed items are visually distinguishable
+                    InfoService.Instance.InjectValue(UIUtils.Intern(injectKey + ".Color"), "2");
+
                     // Try resolve label (ignore errors in template resolution)
                     try 
                     {
