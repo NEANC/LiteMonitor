@@ -250,14 +250,10 @@ namespace LiteMonitor.src.UI.SettingsPage
                 () => string.IsNullOrEmpty(Config?.UpdateProxyType) ? "off" : Config!.UpdateProxyType,
                 v => { if (Config != null) Config.UpdateProxyType = v; });
 
-            group.AddInput(this, "Menu.UpdateProxyHost",
-                () => Config?.UpdateProxyHost ?? "",
-                v => { if (Config != null) Config.UpdateProxyHost = v; },
-                "127.0.0.1", 130);
-
-            group.AddInt(this, "Menu.UpdateProxyPort", "",
-                () => Config?.UpdateProxyPort ?? 0,
-                v => { if (Config != null) Config.UpdateProxyPort = v; }, 70);
+            group.AddInput(this, "Menu.UpdateProxyServer",
+                () => Config?.UpdateProxyServer ?? "",
+                v => { if (Config != null) Config.UpdateProxyServer = v; },
+                "127.0.0.1:7890", 170);
 
             AddGroupToPage(group);
         }

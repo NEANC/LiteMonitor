@@ -215,8 +215,7 @@
     "AutoCheckUpdate": "자동 확인",
     "HideTrayIcon": "트레이 숨김",
     "UpdateProxyType": "업데이트 프록시",
-    "UpdateProxyHost": "프록시 서버",
-    "UpdateProxyPort": "프록시 포트",
+    "UpdateProxyServer": "프록시 주소",
     "ProxyOff": "끄기",
 
     "Calibration": "보정",

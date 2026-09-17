@@ -216,8 +216,7 @@
     "AutoCheckUpdate": "自動更新確認",
     "HideTrayIcon": "トレイ非表示",
     "UpdateProxyType": "更新プロキシ",
-    "UpdateProxyHost": "プロキシサーバー",
-    "UpdateProxyPort": "プロキシポート",
+    "UpdateProxyServer": "プロキシアドレス",
     "ProxyOff": "オフ",
 
     "Calibration": "ハードウェア校正",

@@ -215,8 +215,7 @@
     "AutoCheckUpdate": "自动检查更新",
     "HideTrayIcon": "隐藏托盘图标",
     "UpdateProxyType": "更新代理",
-    "UpdateProxyHost": "代理服务器",
-    "UpdateProxyPort": "代理端口",
+    "UpdateProxyServer": "代理地址",
     "ProxyOff": "关闭",
 
     "Calibration": "硬件参数校准",

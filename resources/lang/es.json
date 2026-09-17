@@ -215,8 +215,7 @@
     "AutoCheckUpdate": "Auto-Check",
     "HideTrayIcon": "Ocultar icono",
     "UpdateProxyType": "Proxy de actualización",
-    "UpdateProxyHost": "Servidor proxy",
-    "UpdateProxyPort": "Puerto proxy",
+    "UpdateProxyServer": "Dirección proxy",
     "ProxyOff": "Desactivado",
 
     "Calibration": "Calibración",

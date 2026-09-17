@@ -23,6 +23,10 @@ namespace LiteMonitor
         // ====== 更新代理 ======
         // 代理类型："off"=关闭（直连），"http"=HTTP 代理，"socks5"=SOCKS5 代理
         public string UpdateProxyType { get; set; } = "off";
+        // 代理地址，地址与端口组合书写，如 "127.0.0.1:7890"
+        public string UpdateProxyServer { get; set; } = "";
+
+        // v1.3.9-beta 曾拆分为主机/端口两个字段，保留用于一次性迁移
         public string UpdateProxyHost { get; set; } = "";
         public int UpdateProxyPort { get; set; } = 0;
 
@@ -190,6 +194,14 @@ namespace LiteMonitor
             if (_instance.WebServerPassword == null)
             {
                 _instance.WebServerPassword = "";
+            }
+
+            // 兼容 v1.3.9-beta：代理主机/端口两字段迁移为组合地址
+            if (string.IsNullOrWhiteSpace(_instance.UpdateProxyServer)
+                && !string.IsNullOrWhiteSpace(_instance.UpdateProxyHost)
+                && _instance.UpdateProxyPort > 0)
+            {
+                _instance.UpdateProxyServer = $"{_instance.UpdateProxyHost.Trim()}:{_instance.UpdateProxyPort}";
             }
 
             return _instance;

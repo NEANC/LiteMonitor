@@ -215,8 +215,7 @@
     "AutoCheckUpdate": "Авто-проверка",
     "HideTrayIcon": "Без иконки",
     "UpdateProxyType": "Прокси обновлений",
-    "UpdateProxyHost": "Прокси-сервер",
-    "UpdateProxyPort": "Порт прокси",
+    "UpdateProxyServer": "Адрес прокси",
     "ProxyOff": "Выкл",
 
     "Calibration": "Калибровка",
