@@ -118,8 +118,13 @@ jobs:
           while IFS= read -r line; do
             [ -z "$line" ] && continue
             sha=$(echo "$line" | cut -d' ' -f1)
+            subject=$(git log -1 --format="%s" "$sha")
+            # CI 机器人回写 master 的版本同步提交（[release-sync]）永远不进更新日志
+            if [[ "$subject" == *"[release-sync]"* ]]; then
+              continue
+            fi
             # Revert 提交本身不进日志，并记录被还原的原始提交 SHA
-            if git log -1 --format="%s" "$sha" | grep -qi "^Revert "; then
+            if echo "$subject" | grep -qi "^Revert "; then
               reverted=$(git log -1 --format="%B" "$sha" | grep -oP 'This reverts commit \K[a-f0-9]+' | head -1 || true)
               [[ -n "$reverted" ]] && echo "$reverted" >> reverted_shas.txt
               continue
@@ -254,7 +259,8 @@ jobs:
 
       # 发布完成后把版本文件回写到 master：
       # 应用内更新检查读取的是 master 上的 version.json，不回写则老用户收不到更新提示。
-      # 提交信息带 [skip ci]，避免回写推送再次触发本工作流。
+      # [skip ci] 避免回写推送再次触发本工作流；
+      # [release-sync] 为专用标记，使该提交在任何版本的 changelog 生成中都被过滤。
       - name: Sync version files back to master
         if: startsWith(github.ref, 'refs/tags/v')
         shell: pwsh
@@ -284,5 +290,5 @@ jobs:
             exit 0
           }
 
-          git commit -m "chore(release): 同步 $tag 版本号与更新日志 [skip ci]"
+          git commit -m "chore(release): 同步 $tag 版本号与更新日志 [release-sync] [skip ci]"
           git push origin master
