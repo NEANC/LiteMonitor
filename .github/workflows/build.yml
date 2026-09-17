@@ -38,7 +38,16 @@ jobs:
             echo "${{ github.event_name }} 事件，执行构建。"
             echo "should_build=true" >> "$GITHUB_OUTPUT"
           else
-            tags=$(git tag --points-at "${{ github.sha }}" --list 'v*')
+            # 分支推送。发版时标签推送可能与分支推送先后到达，
+            # 在一个时间窗口内反复拉取标签，若该提交随后被 v* 标签指向则跳过，
+            # 避免与标签发布构建重复。
+            tags=""
+            for i in 1 2 3 4 5 6 7 8 9 10 11 12; do
+              git fetch --tags --quiet origin || true
+              tags=$(git tag --points-at "${{ github.sha }}" --list 'v*')
+              [ -n "$tags" ] && break
+              sleep 5
+            done
             if [ -n "$tags" ]; then
               echo "提交 ${{ github.sha }} 已被版本标签 $tags 指向，跳过分支重复构建。"
               echo "should_build=false" >> "$GITHUB_OUTPUT"
@@ -48,7 +57,7 @@ jobs:
             fi
           fi
 
-  # 标签发布时先生成版本元数据（changelog / 版本号），产物供 build 与 sync 并行消费
+  # 标签发布时先生成版本元数据（changelog / 版本号），产物供 build 使用并随 artifact 传给 sync
   prepare:
     name: Prepare release metadata
     needs: check
@@ -293,13 +302,14 @@ jobs:
           prerelease: ${{ needs.prepare.outputs.prerelease == 'true' }}
           fail_on_unmatched_files: true
 
-  # 与 build 并行：发布元数据就绪后立即回写 master，不等待构建结果
-  # 应用内更新检查读取 master 上的 version.json，不回写则老用户收不到更新提示。
+  # build 成功后才顺序回写 master：构建或发布失败时该作业被跳过，
+  # 避免把未成功发布的版本号写入 master 导致老用户收到错误更新提示。
+  # 应用内更新检查读取 master 上的 version.json。
   sync:
     name: Sync version files to master
     needs:
       - check
-      - prepare
+      - build
     if: >-
       needs.check.outputs.should_build == 'true' &&
       startsWith(github.ref, 'refs/tags/v')
