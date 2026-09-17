@@ -185,9 +185,11 @@ namespace LiteMonitor.src.Plugins
         [JsonPropertyName("format")]
         public string Format { get; set; } = "";
 
-        // For countdown: 源为空或时间无法解析时的兜底文本，默认 "--:--:--"
+        // For countdown: 源为空或时间无法解析时的兜底文本。
+        // null（未提供该字段）时使用默认值 "--:--:--"；
+        // 显式配置空字符串 "" 时按空字符串处理，与“未提供”语义不同。
         [JsonPropertyName("fallback")]
-        public string Fallback { get; set; } = "";
+        public string? Fallback { get; set; }
     }
 
     public class PluginOutput

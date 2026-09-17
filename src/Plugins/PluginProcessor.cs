@@ -183,7 +183,9 @@ namespace LiteMonitor.src.Plugins
         /// </summary>
         private static string ApplyCountdown(string val, PluginTransform t)
         {
-            string fallback = string.IsNullOrEmpty(t.Fallback) ? CountdownDefaultFallback : t.Fallback;
+            // 仅在未提供 fallback（null）时使用默认占位符；
+            // 显式空字符串 "" 必须被尊重（插件可借此表达“无内容”）
+            string fallback = t.Fallback ?? CountdownDefaultFallback;
 
             if (string.IsNullOrWhiteSpace(val))
             {
