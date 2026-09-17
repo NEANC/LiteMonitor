@@ -1,6 +1,6 @@
 {
-  "version": "1.3.6",
-  "changelog": "修正1.3.5版本部分问题\n1，新增监控历史，可查看温度、负载、功耗、频率、FPS 等历史趋势\n2，支持多显卡切换\n3，更新硬件核心库到最新正式版\n4，优化并修复部分已知问题",
-  "releaseDate": "2026-05-16",
-  "downloadUrl": "https://github.com/Diorser/LiteMonitor/releases"
+  "version": "1.3.8",
+  "changelog": "1，插件引擎新增 countdown 倒计时处理函数\n2，插件引擎请求失败时注入红色状态颜色\n3，countdown 函数新增 {tm} 总分钟数占位符\n4，MowerNG 插件支持停止状态识别和 15 分钟阈值变色\n5，CI/CD 支持 GitHub Release 自动发布",
+  "releaseDate": "2026-09-17",
+  "downloadUrl": "https://github.com/NEANC/LiteMonitor/releases"
 }
