@@ -57,6 +57,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
+        with:
+          fetch-depth: 0  # 生成 changelog 需要完整标签历史
 
       - name: Setup .NET 8
         uses: actions/setup-dotnet@v6
@@ -84,6 +86,108 @@ jobs:
             }
           }
 
+      # 仅标签发布：按 git 历史生成变更日志（Revert 提交与其还原的提交都会被过滤）
+      - name: Generate changelog from git history
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        run: |
+          set -euo pipefail
+          current_tag="${GITHUB_REF_NAME}"
+
+          if [[ "$current_tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            prerelease="false"
+            # 正式版：回追到上一个稳定版，区间内包含所有预发布版的提交
+            previous_base=$(git tag --sort=-creatordate | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | grep -v "^${current_tag}$" | head -1 || true)
+          else
+            prerelease="true"
+            # 预发布版：增量，取上一个任意标签
+            previous_base=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || true)
+          fi
+          echo "prerelease=$prerelease previous_base=${previous_base:-<none>}"
+          echo "PRERELEASE=$prerelease" >> "$GITHUB_ENV"
+
+          if [[ -n "$previous_base" ]]; then
+            git log --oneline --no-merges "$previous_base..HEAD" > raw_commits.txt
+          else
+            echo "First release, no previous tag found"
+            git log --oneline --no-merges | head -8 > raw_commits.txt
+          fi
+
+          : > filtered_commits.txt
+          : > reverted_shas.txt
+          while IFS= read -r line; do
+            [ -z "$line" ] && continue
+            sha=$(echo "$line" | cut -d' ' -f1)
+            # Revert 提交本身不进日志，并记录被还原的原始提交 SHA
+            if git log -1 --format="%s" "$sha" | grep -qi "^Revert "; then
+              reverted=$(git log -1 --format="%B" "$sha" | grep -oP 'This reverts commit \K[a-f0-9]+' | head -1 || true)
+              [[ -n "$reverted" ]] && echo "$reverted" >> reverted_shas.txt
+              continue
+            fi
+            # 被还原的原始提交同样跳过
+            if grep -q "^$sha$" reverted_shas.txt 2>/dev/null; then
+              continue
+            fi
+            echo "$line" >> filtered_commits.txt
+          done < raw_commits.txt
+
+          total=$(wc -l < filtered_commits.txt | tr -d ' ')
+          if [[ "$prerelease" == "false" ]]; then limit=15; else limit=8; fi
+          head -n "$limit" filtered_commits.txt > changelog_oneline.txt
+
+          # 仅提交主题（无 SHA），供应用内 version.json 使用
+          while read -r sha _; do
+            git log -1 --format="%s" "$sha"
+          done < changelog_oneline.txt > changelog_subjects.txt
+
+          {
+            echo "## What's Changed"
+            echo
+            cat changelog_oneline.txt
+            if [[ -n "$previous_base" ]] && { [[ "$prerelease" == "false" ]] || [[ "$total" -gt "$limit" ]]; }; then
+              echo
+              echo "**Full Changelog**: https://github.com/${GITHUB_REPOSITORY}/compare/$previous_base...$current_tag"
+            fi
+            echo
+            echo "---"
+            echo
+            echo "下载 \`LiteMonitor-win-x64-<版本>.zip\`，解压后运行 LiteMonitor.exe。"
+            echo "本版本为框架依赖发布，需要预先安装 [.NET 8 Desktop Runtime (x64)](https://dotnet.microsoft.com/download/dotnet/8.0)。"
+          } > CHANGELOG.md
+
+          rm -f raw_commits.txt filtered_commits.txt reverted_shas.txt
+
+      # 仅标签发布：把标签版本写入 csproj 与 version.json（仅修改 CI 工作区，不回写仓库）
+      - name: Apply tag version to csproj and version.json
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        run: |
+          $tag = $env:GITHUB_REF_NAME
+          $full = $tag -replace '^v', ''
+          $core = ($full -split '[-+]')[0]
+          # FileVersion 只接受纯数字四段式
+          $fileVersion = if (($core.Split('.')).Count -ge 4) { $core } else { "$core.0" }
+          "RELEASE_VERSION=$full" | Add-Content -Path $env:GITHUB_ENV
+          "FILE_VERSION=$fileVersion" | Add-Content -Path $env:GITHUB_ENV
+
+          $csprojPath = 'LiteMonitor.csproj'
+          $csproj = Get-Content -Raw -LiteralPath $csprojPath
+          $csproj = $csproj -replace '<Version>.*?</Version>', "<Version>$full</Version>"
+          $csproj = $csproj -replace '<FileVersion>.*?</FileVersion>', "<FileVersion>$fileVersion</FileVersion>"
+          Set-Content -LiteralPath $csprojPath -Value $csproj -NoNewline -Encoding utf8NoBOM
+          Write-Host "csproj -> Version=$full FileVersion=$fileVersion"
+
+          $versionPath = 'resources/version.json'
+          $version = Get-Content -Raw -LiteralPath $versionPath | ConvertFrom-Json
+          $subjects = @(Get-Content -LiteralPath 'changelog_subjects.txt' | Where-Object { $_ })
+          $numbered = for ($i = 0; $i -lt $subjects.Count; $i++) { "$($i + 1)，$($subjects[$i])" }
+          $version.version = $core
+          $version.changelog = ($numbered -join "`n")
+          $version.releaseDate = (Get-Date).ToUniversalTime().AddHours(8).ToString('yyyy-MM-dd')
+          # downloadUrl 保持文件内既有值，不在 CI 中改写
+          $version | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $versionPath -Encoding utf8NoBOM
+          Write-Host "version.json -> version=$core, $($subjects.Count) changelog entries"
+
       - name: Build
         run: dotnet build LiteMonitor.csproj --configuration Release --runtime win-x64 --no-restore
 
@@ -96,13 +200,27 @@ jobs:
           --output publish
           --no-restore
 
+      # 独立构建 Updater（框架依赖单文件），覆盖发布包中预置的旧版，
+      # 保证 Program.cs 的文件处理修复随包分发，主程序更新前会先解压它
+      - name: Build and embed Updater
+        shell: pwsh
+        run: |
+          dotnet publish LiteMonitor.Updater/LiteMonitor.Updater.csproj `
+            --configuration Release `
+            --runtime win-x64 `
+            --self-contained false `
+            -p:PublishSingleFile=true `
+            --output updater_publish
+          Copy-Item -LiteralPath 'updater_publish/LiteMonitor.Updater.exe' `
+                    -Destination 'publish/resources/LiteMonitor.Updater.exe' -Force
+          Get-Item 'publish/resources/LiteMonitor.Updater.exe' |
+            ForEach-Object { "Embedded Updater: {0:N1} MB" -f ($_.Length / 1MB) }
+
       - name: Create release archive
         shell: pwsh
         run: |
-          $version = ''
-          if ('${{ github.ref_type }}' -eq 'tag' -and '${{ github.ref_name }}' -match '^v(.+)$') {
-            $version = $Matches[1]
-          }
+          # 标签构建使用随标签写入的版本；其余构建回退 csproj 版本，再回退 commit SHA
+          $version = $env:RELEASE_VERSION
           if ([string]::IsNullOrWhiteSpace($version)) {
             [xml]$project = Get-Content -Raw -LiteralPath 'LiteMonitor.csproj'
             $version = $project.Project.PropertyGroup.Version | Select-Object -First 1
@@ -129,9 +247,7 @@ jobs:
         with:
           files: ${{ env.ARCHIVE }}
           name: LiteMonitor ${{ github.ref_name }}
+          body_path: CHANGELOG.md
           # 标签含连字符（如 v1.3.9-beta、v1.3.9-rc1）时标记为预发布版
-          prerelease: ${{ contains(github.ref_name, '-') }}
-          body: |
-            下载 `LiteMonitor-win-x64-<版本>.zip`，解压后运行 LiteMonitor.exe。
-            本版本为框架依赖发布，需要预先安装 [.NET 8 Desktop Runtime (x64)](https://dotnet.microsoft.com/get-dotnet/dotnet-core?missing_runtime=true&arch=x64&rid=win-x64&os=win7&apphost_version=8.0.0&gui=true) 。
+          prerelease: ${{ env.PRERELEASE == 'true' }}
           fail_on_unmatched_files: true
