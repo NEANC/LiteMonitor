@@ -77,11 +77,18 @@
             }
           },
           {
+            "var": "task_live",
+            "source": "countdown_display",
+            "function": "regex_replace",
+            "pattern": "^00:00:00$",
+            "to": ""
+          },
+          {
             "var": "scheduler_status_template",
             "source": "idle",
             "function": "map",
             "map": {
-              "true": "{{next_time ? '空闲' : '停止'}}",
+              "true": "{{task_live ? '空闲' : '停止'}}",
               "false": "运行中"
             }
           },
@@ -95,8 +102,8 @@
             "source": "idle",
             "function": "map",
             "map": {
-              "true": "{{next_time ? time_color : '0'}}",
-              "false": "1"
+              "true": "{{task_live ? time_color : '2'}}",
+              "false": "0"
             }
           },
           {
@@ -127,7 +134,7 @@
       "key": "scheduler",
       "label": "mower-ng",
       "short_label": "Mower",
-      "format_val": "{{scheduler_status}}{{next_time ? ' | ' : ''}}{{display_value}}",
+      "format_val": "{{scheduler_status}}{{task_live ? ' | ' : ''}}{{task_live ? display_value : ''}}",
       "color": "{{status_color}}",
       "unit": ""
     }
