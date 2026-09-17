@@ -80,7 +80,7 @@
             "var": "task_live",
             "source": "countdown_display",
             "function": "regex_replace",
-            "pattern": "^00:00:00$",
+            "pattern": "^(00:00:00|--:--:--)$",
             "to": ""
           },
           {
